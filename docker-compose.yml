@@ -2,57 +2,6 @@ version: "3.9"
 
 services:
 
-  postgres:
-    image: postgres:16
-    container_name: keycloak_postgres
-    restart: always
-    environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak123
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - keycloak_net
-
-  keycloak:
-    user: root
-    image: quay.io/keycloak/keycloak:24.0.2
-    container_name: keycloak
-    restart: always
-
-    command:
-      - start-dev
-      - --health-enabled=true
-      - --transaction-xa-enabled=false
-      - --hostname-strict=false
-      - --hostname-strict-https=false
-      - --hostname=98.95.40.70
-      - --https-port=8443
-      - --https-certificate-file=/opt/keycloak/certs/server.crt
-      - --https-certificate-key-file=/opt/keycloak/certs/server.key
-
-    environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_DB: postgres
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak123
-      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
-
-    depends_on:
-      - postgres
-
-    ports:
-      - "8080:8080"
-      - "8443:8443"
-
-    volumes:
-      - /opt/keycloak/certs:/opt/keycloak/certs:ro
-
-    networks:
-      - keycloak_net
-
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: winedge_db
@@ -64,8 +13,6 @@ services:
       - "1433:1433"
     volumes:
       - mssql_data:/var/opt/mssql
-    networks:
-      - keycloak_net
 
   winedge-app:
     build: .
@@ -73,30 +20,20 @@ services:
     restart: always
 
     depends_on:
-      - keycloak
       - mssql
 
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
 
-      Keycloak__Authority: "https://keycloak:8443/realms/winedge"
-      Keycloak__ClientId: "winedge-mvc"
-      Keycloak__ClientSecret: "SEU_CLIENT_SECRET_AQUI"
+      Keycloak__Authority: "https://98.95.40.70:8443/realms/winedge"
+      Keycloak__ClientId: "aspnetcoremvc"
+      Keycloak__ClientSecret: "8BDKe5E4giLoed3zS0eflXcZyjyS5Ycq"
       Keycloak__CallbackPath: "/signin-oidc"
 
-     
       ConnectionStrings__DefaultConnection: "Server=mssql;Database=Winedge;User=sa;Password=Winedge@123;TrustServerCertificate=True;"
 
     ports:
-      - "8081:8080"
-
-    networks:
-      - keycloak_net
+      - "8082:5000"
 
 volumes:
-  postgres_data:
   mssql_data:
-
-networks:
-  keycloak_net:
-    driver: bridge
