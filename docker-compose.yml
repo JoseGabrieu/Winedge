@@ -21,7 +21,7 @@ services:
 
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
-      ConnectionStrings__DefaultConnection: "Server=mssql;Database=Winedge;User=sa;Password=Winedge@123;TrustServerCertificate=True;"
+      ConnectionStrings__DefaultConnection: "Server=mssql;Database=Winedge;User=sa;Password=Winedge@123;TrustServerCertificate=True;ConnectRetryCount=5;ConnectRetryInterval=10;"
 
     ports:
       - "8082:5000"
