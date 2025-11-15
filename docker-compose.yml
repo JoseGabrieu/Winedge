@@ -1,0 +1,125 @@
+version: "3.9"
+
+services:
+
+  # ============================================
+  # POSTGRES (Keycloak DB)
+  # ============================================
+  postgres:
+    image: postgres:16
+    container_name: keycloak_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - keycloak_net
+
+
+  # ============================================
+  # KEYCLOAK
+  # ============================================
+  keycloak:
+    user: root
+    image: quay.io/keycloak/keycloak:24.0.2
+    container_name: keycloak
+    restart: always
+
+    command:
+      - start-dev
+      - --health-enabled=true
+      - --transaction-xa-enabled=false
+      - --hostname-strict=false
+      - --hostname-strict-https=false
+      - --hostname=98.95.40.70
+      - --https-port=8443
+      - --https-certificate-file=/opt/keycloak/certs/server.crt
+      - --https-certificate-key-file=/opt/keycloak/certs/server.key
+
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak123
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+
+    depends_on:
+      - postgres
+
+    ports:
+      - "8080:8080"   # HTTP Keycloak
+      - "8443:8443"   # HTTPS Keycloak
+
+    volumes:
+      - /opt/keycloak/certs:/opt/keycloak/certs:ro
+
+    networks:
+      - keycloak_net
+
+
+  # ============================================
+  # SQL SERVER (opcional - remove se não usar)
+  # ============================================
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: winedge_db
+    restart: always
+    environment:
+      SA_PASSWORD: "Winedge@123"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    networks:
+      - keycloak_net
+
+
+  # ============================================
+  # MVC (.NET 9)
+  # ============================================
+  winedge-app:
+    build: .
+    container_name: winedge-app
+    restart: always
+
+    depends_on:
+      - keycloak
+      - mssql
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+
+      # ===== KEYCLOAK CONFIG =====
+      Keycloak__Authority: "https://keycloak:8443/realms/winedge"
+      Keycloak__ClientId: "winedge-mvc"
+      Keycloak__ClientSecret: "SEU_CLIENT_SECRET_AQUI"
+      Keycloak__CallbackPath: "/signin-oidc"
+
+      # ===== DATABASE =====
+      ConnectionStrings__DefaultConnection: "Server=mssql;Database=Winedge;User=sa;Password=Winedge@123;TrustServerCertificate=True;"
+
+    ports:
+      - "8081:8080"   # MVC acessível em localhost:8081
+
+    networks:
+      - keycloak_net
+
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  postgres_data:
+  mssql_data:
+
+# ============================================
+# NETWORK
+# ============================================
+networks:
+  keycloak_net:
+    driver: bridge
