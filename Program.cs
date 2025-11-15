@@ -46,12 +46,12 @@ builder.Services.AddAuthentication(options =>
     options.SaveTokens = true;
     options.GetClaimsFromUserInfoEndpoint = true;
 
-    // ================================================
-    // **NUNCA VALIDAR HTTPS** (DEV + PRODUÇÃO)
-    // ================================================
+    // NUNCA VALIDAR HTTPS** (DEV + PRODUÇÃO)
     options.RequireHttpsMetadata = false;
     options.BackchannelHttpHandler = insecureHandler;
-    // ================================================
+
+    options.UsePkce = false;
+    options.TokenValidationParameters.ValidateIssuer = false;
 
     options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
     {
