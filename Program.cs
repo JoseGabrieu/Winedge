@@ -32,7 +32,7 @@ builder.Services.AddAuthentication(options =>
     options.LogoutPath = "/Account/Logout";
     options.AccessDeniedPath = "/Error/Forbidden";
     options.Cookie.Name = "Auth";
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
     options.Cookie.SameSite = SameSiteMode.Lax;
 
 }).AddOpenIdConnect(options =>
