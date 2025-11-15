@@ -22,7 +22,61 @@ builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+
+}).AddCookie(options =>
+{
+    options.LoginPath = "/Account/Login";
+    options.LogoutPath = "/Account/Logout";
+    options.AccessDeniedPath = "/Error/Forbidden";
+
+    options.Cookie.Name = "Auth";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.None;  // NA EC2 + KEYCLOAK
 })
+.AddOpenIdConnect(options =>
+{
+    options.Authority = builder.Configuration["Keycloak:Authority"];
+    options.ClientId = builder.Configuration["Keycloak:ClientId"];
+    options.ClientSecret = builder.Configuration["Keycloak:ClientSecret"];
+    options.CallbackPath = builder.Configuration["Keycloak:CallbackPath"];
+
+    options.ResponseType = "code";
+    options.SaveTokens = true;
+    options.GetClaimsFromUserInfoEndpoint = true;
+
+    options.RequireHttpsMetadata = false;
+    options.BackchannelHttpHandler = insecureHandler;
+
+    options.UsePkce = false;
+    options.TokenValidationParameters.ValidateIssuer = false;
+
+    // evita "Correlation failed"
+    options.CorrelationCookie.SameSite = SameSiteMode.None;
+    options.NonceCookie.SameSite = SameSiteMode.None;
+    options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+
+    options.TokenValidationParameters = new()
+    {
+        NameClaimType = "preferred_username",
+        RoleClaimType = "roles"
+    };
+
+    options.Events = new OpenIdConnectEvents
+    {
+        OnTicketReceived = ctx =>
+        {
+            Console.WriteLine("\n--- LOGIN OK ---\n");
+            return Task.CompletedTask;
+        },
+        OnRemoteFailure = ctx =>
+        {
+            Console.WriteLine("REMOTE FAILURE: " + ctx.Failure?.Message);
+            return Task.CompletedTask;
+        }
+    };
+});
+
 .AddCookie(options =>
 {
     options.LoginPath = "/Account/Login";
