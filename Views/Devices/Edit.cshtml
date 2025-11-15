@@ -1,0 +1,118 @@
+﻿@model Winedge.Models.Device
+
+@{
+    ViewData["Title"] = "Editar Dispositivo";
+}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+<div class="row">
+    <div class="col-lg-6 col-md-8 mx-auto">
+
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="bi bi-pencil-square"></i> @ViewData["Title"]
+                </h4>
+            </div>
+
+            <form asp-action="Edit" method="post">
+                <div class="card-body">
+
+                    <input type="hidden" asp-for="Id" />
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="DeviceName" class="control-label">Dispositivo</label>
+                        <input asp-for="DeviceName" class="form-control" />
+                        <span asp-validation-for="DeviceName" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="control-label">Localização</label>
+                        <p class="form-text text-muted mt-0 mb-2">Clique ou arraste o pino para redefinir a localização.</p>
+                        <div id="editMap" style="height: 300px; width: 100%; border-radius: 10px; border: 1px solid #ddd;"></div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Latitude" class="control-label">Latitude</label>
+                            <input asp-for="Latitude" class="form-control" readonly />
+                            <span asp-validation-for="Latitude" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Longitude" class="control-label">Longitude</label>
+                            <input asp-for="Longitude" class="form-control" readonly />
+                            <span asp-validation-for="Longitude" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="card-footer text-end">
+                    <a asp-action="Index" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-lg"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary ms-2">
+                        <i class="bi bi-check-lg"></i> Salvar Alterações
+                    </button>
+                </div>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+
+            // 1. Pega os inputs (readonly)
+            const latInput = document.getElementById("Latitude");
+            const lngInput = document.getElementById("Longitude");
+
+            // 2. Pega os valores iniciais
+            const initialLat = parseFloat("@Model.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)");
+            const initialLng = parseFloat("@Model.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)");
+
+            // 3. Inicializa o mapa
+            const map = L.map('editMap').setView([initialLat, initialLng], 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            // 4. Cria o marcador (arrastável)
+            const marker = L.marker([initialLat, initialLng], {
+                draggable: true
+            }).addTo(map);
+
+            // --- Função Helper para atualizar os inputs ---
+            function updateInputs(coords) {
+                // Atualiza os valores dos inputs com 7 casas decimais
+                latInput.value = coords.lat.toFixed(7);
+                lngInput.value = coords.lng.toFixed(7);
+            }
+
+            // 5. Evento ao "soltar" o pino arrastado
+            marker.on('dragend', function (e) {
+                updateInputs(marker.getLatLng());
+            });
+
+            // 6. NOVO: Evento de 'clique' no mapa
+            map.on('click', function(e) {
+                // Move o pino para o local clicado
+                marker.setLatLng(e.latlng);
+
+                // Atualiza os inputs
+                updateInputs(e.latlng);
+            });
+
+        });
+    </script>
+}

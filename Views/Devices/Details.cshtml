@@ -1,0 +1,364 @@
+﻿@model Winedge.Models.Device
+
+@{
+    ViewData["Title"] = "Detalhes do Dispositivo";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>@ViewData["Title"]</h2>
+    <a asp-action="Index" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+</div>
+
+<div class="row">
+
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i id="chartIcon" class="bi bi-thermometer-half text-danger"></i> Monitoramento em tempo real
+                </h5>
+                <select id="dataType" class="form-select w-auto">
+                    <option value="temperature" selected>Temperatura (°C)</option>
+                    <option value="humidity">Umidade (%)</option>
+                    <option value="luminosity">Luminosidade (lx)</option>
+                </select>
+            </div>
+            <div class="card-body">
+                <div style="position: relative; height: 350px;">
+                    <canvas id="deviceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-info-circle-fill"></i> Informações
+                </h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">ID</dt>
+                    <dd class="col-sm-8">@Model.Id</dd>
+                    <dt class="col-sm-4">Dispositivo</dt>
+                    <dd class="col-sm-8">@Model.DeviceName</dd>
+                </dl>
+            </div>
+            <div class="card-footer bg-light text-end">
+                <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">
+                    <i class="bi bi-pencil-fill"></i> Editar
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-geo-alt-fill"></i> Localização do Dispositivo
+                </h5>
+            </div>
+            <div class="card-body">
+                <p>
+                    <strong>Latitude:</strong> @Model.Latitude <br />
+                    <strong>Longitude:</strong> @Model.Longitude
+                </p>
+                <div id="map" style="height: 350px; width: 100%; border-radius: 10px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-cloud-sun-fill"></i> Previsão do Clima
+                </h5>
+            </div>
+            <div class="card-body" id="weatherBox" style="height: 423px;">
+                <div class="d-flex justify-content-center align-items-center h-100">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Carregando clima...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+
+            // ======================================
+            // LEAFLET MAP (Sem mudanças)
+            // ======================================
+            const lat = "@Model.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)";
+            const lng = "@Model.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)";
+            const latNum = parseFloat(lat);
+            const lngNum = parseFloat(lng);
+
+            const map = L.map('map').setView([latNum, lngNum], 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+            L.marker([latNum, lngNum]).addTo(map)
+                .bindPopup("@Model.DeviceName")
+                .openPopup();
+
+            // ======================================
+            //  GRÁFICO (COM APRIMORAMENTO VISUAL)
+            // ======================================
+            const ctx = document.getElementById('deviceChart').getContext('2d');
+            const deviceId = '@Model.DeviceName';
+            const MAX_POINTS = 100;
+            const UPDATE_INTERVAL_MS = 2000;
+
+            // *** 🎨 NOVO: "Motor de Temas" do Gráfico ***
+            const chartThemes = {
+                temperature: {
+                    iconClass: "bi-thermometer-half",
+                    colorHex: "#dc3545", // Vermelho (Danger)
+                    rgbaStart: "rgba(220, 53, 69, 0.4)",
+                    rgbaEnd: "rgba(220, 53, 69, 0)",
+                    iconColorClass: "text-danger"
+                },
+                humidity: {
+                    iconClass: "bi-droplet-half",
+                    colorHex: "#007bff", // Azul (Primary)
+                    rgbaStart: "rgba(0, 123, 255, 0.4)",
+                    rgbaEnd: "rgba(0, 123, 255, 0)",
+                    iconColorClass: "text-primary"
+                },
+                luminosity: {
+                    iconClass: "bi-sun-fill",
+                    colorHex: "#ffc107", // Amarelo (Warning)
+                    rgbaStart: "rgba(255, 193, 7, 0.4)",
+                    rgbaEnd: "rgba(255, 193, 7, 0)",
+                    iconColorClass: "text-warning"
+                }
+            };
+
+            // *** 🎨 NOVO: Função para aplicar o tema ***
+            function updateChartTheme(selectedType) {
+                const theme = chartThemes[selectedType];
+                if (!theme) return;
+
+                // 1. Atualiza o Ícone no Título
+                const iconEl = document.getElementById("chartIcon");
+                iconEl.className = "bi"; // Reseta classes
+                iconEl.classList.add(theme.iconClass, theme.iconColorClass);
+
+                // 2. Cria o novo gradiente
+                const newGradient = ctx.createLinearGradient(0, 0, 0, 350);
+                newGradient.addColorStop(0, theme.rgbaStart);
+                newGradient.addColorStop(1, theme.rgbaEnd);
+
+                // 3. Atualiza o dataset do gráfico
+                const dataset = chart.data.datasets[0];
+                dataset.borderColor = theme.colorHex;
+                dataset.backgroundColor = newGradient;
+            }
+
+            // Define o tema inicial (Temperatura)
+            const initialTheme = chartThemes.temperature;
+            const initialGradient = ctx.createLinearGradient(0, 0, 0, 350);
+            initialGradient.addColorStop(0, initialTheme.rgbaStart);
+            initialGradient.addColorStop(1, initialTheme.rgbaEnd);
+
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Temperatura (°C)',
+                        data: [],
+                        borderWidth: 2,
+                        // Cores do tema inicial
+                        borderColor: initialTheme.colorHex,
+                        backgroundColor: initialGradient,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Tempo' } },
+                        y: { title: { display: true, text: 'Temperatura (°C)' }, beginAtZero: false }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+
+            // (Funções parseTimestampMs, loadInitialData, updateLastPoint... sem mudanças)
+            function parseTimestampMs(ts) {
+                const ms = Date.parse(ts);
+                return Number.isFinite(ms) ? ms : null;
+            }
+
+            let lastTimestampMs = null;
+            let updateInterval;
+
+            async function loadInitialData() {
+                const type = document.getElementById("dataType").value;
+                try {
+                    const res = await fetch(`/api/sthcomet/${deviceId}/latest?attribute=${type}`);
+                    const json = await res.json();
+                    if (!json.values?.length) {
+                        chart.data.labels = [];
+                        chart.data.datasets[0].data = [];
+                        chart.update();
+                        return;
+                    };
+                    chart.data.labels = json.values.map(v =>
+                        new Date(parseTimestampMs(v.timestamp)).toLocaleTimeString()
+                    );
+                    chart.data.datasets[0].data = json.values.map(v => Number(v.value));
+                    lastTimestampMs = parseTimestampMs(json.values.at(-1).timestamp);
+                    chart.update();
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+
+            async function updateLastPoint() {
+                const type = document.getElementById("dataType").value;
+                try {
+                    const res = await fetch(`/api/sthcomet/${deviceId}/latest?attribute=${type}`);
+                    const json = await res.json();
+                    if (!json.values?.length) return;
+                    const last = json.values.at(-1);
+                    const lastMs = parseTimestampMs(last.timestamp);
+                    if (lastTimestampMs && lastMs <= lastTimestampMs) return;
+                    chart.data.labels.push(new Date(lastMs).toLocaleTimeString());
+                    chart.data.datasets[0].data.push(Number(last.value));
+                    lastTimestampMs = lastMs;
+                    if (chart.data.labels.length > MAX_POINTS) {
+                        chart.data.labels.shift();
+                        chart.data.datasets[0].data.shift();
+                    }
+                    chart.update();
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+
+            // Inicia o gráfico
+            loadInitialData();
+            if (updateInterval) clearInterval(updateInterval);
+            updateInterval = setInterval(updateLastPoint, UPDATE_INTERVAL_MS);
+
+            // *** ATUALIZADO: Event Listener do Dropdown ***
+            document.getElementById("dataType").addEventListener("change", (e) => {
+                chart.data.labels = [];
+                chart.data.datasets[0].data = [];
+                lastTimestampMs = null;
+
+                const selectedType = e.target.value;
+                const selectedOptionText = e.target.options[e.target.selectedIndex].text;
+
+                // *** 🎨 NOVO: Aplica o tema visual ***
+                updateChartTheme(selectedType);
+
+                // Atualiza os rótulos do gráfico (como antes)
+                chart.data.datasets[0].label = selectedOptionText;
+                chart.options.scales.y.title.text = selectedOptionText;
+
+                // Define o 'beginAtZero' (Temperaturas podem ser negativas, umidade não)
+                chart.options.scales.y.beginAtZero = (selectedType !== 'temperature');
+
+                // Atualiza o gráfico (sem animação) e carrega os novos dados
+                chart.update('none');
+                loadInitialData();
+            });
+
+            // ======================================
+            //  PREVISÃO DO CLIMA (Sem mudanças)
+            // ======================================
+            async function loadWeather() {
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${latNum}&longitude=${lngNum}` +
+                    `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code` +
+                    `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
+                    `&timezone=America/Sao_Paulo`;
+
+                try {
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    const current = data.current;
+                    const daily = data.daily;
+                    const weatherText = weatherCodeToText(current.weather_code);
+
+                    document.getElementById("weatherBox").innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6 border-end">
+                                <h5 class="text-center">Agora</h5>
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <span>Condição:</span> <strong>${weatherText}</strong>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <span>Temperatura:</span> <strong>${current.temperature_2m}°C</strong>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <span>Sensação:</span> <strong>${current.apparent_temperature}°C</strong>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <span>Umidade:</span> <strong>${current.relative_humidity_2m}%</strong>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h5 class="text-center">Hoje</h5>
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <span>Máxima:</span> <strong class="text-danger">${daily.temperature_2m_max[0]}°C</strong>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <span>Mínima:</span> <strong class="text-primary">${daily.temperature_2m_min[0]}°C</strong>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <span>Chuva:</span> <strong>${daily.precipitation_probability_max[0]}%</strong>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>`;
+                }
+                catch (e) {
+                    document.getElementById("weatherBox").innerHTML =
+                        "<p class='text-danger'>Não foi possível carregar o clima.</p>";
+                    console.error("Erro ao carregar clima:", e);
+                }
+            }
+
+            function weatherCodeToText(code) {
+                const map = {
+                    0: "Céu limpo", 1: "Principalmente claro", 2: "Parcialmente nublado", 3: "Nublado",
+                    45: "Nevoeiro", 48: "Nevoeiro com gelo", 51: "Garoa fraca", 53: "Garoa moderada",
+                    55: "Garoa intensa", 61: "Chuva fraca", 63: "Chuva moderada", 65: "Chuva forte",
+                    71: "Neve fraca", 73: "Neve moderada", 75: "Neve forte", 95: "Tempestade",
+                    96: "Tempestade com granizo"
+                };
+                return map[code] ?? "Desconhecido";
+            }
+
+            loadWeather();
+
+        }); // Fim do 'DOMContentLoaded'
+    </script>
+}

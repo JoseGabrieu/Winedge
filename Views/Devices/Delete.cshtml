@@ -1,4 +1,4 @@
-﻿@model Winedge.Models.UserDevice
+﻿@model Winedge.Models.Device
 
 @{
     ViewData["Title"] = "Excluir Dispositivo";
@@ -22,11 +22,8 @@
                 <hr />
 
                 <dl class="row">
-                    <dt class="col-sm-3">Usuário</dt>
-                    <dd class="col-sm-9">@Model.User</dd>
-
                     <dt class="col-sm-3">Dispositivo</dt>
-                    <dd class="col-sm-9">@Model.Device</dd>
+                    <dd class="col-sm-9">@Model.DeviceName</dd>
                 </dl>
             </div>
 

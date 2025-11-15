@@ -1,157 +1,25 @@
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Winedge.Data;
 using Microsoft.EntityFrameworkCore;
-using System.Net;
+using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // MVC
 builder.Services.AddControllersWithViews();
 
-// IGNORAR SSL (DEV/PRODUÇÃO)
-HttpClientHandler insecureHandler = new HttpClientHandler
-{
-    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-};
+var cultureInfo = new CultureInfo("en-US");
+CultureInfo.DefaultThreadCurrentCulture = cultureInfo;
+CultureInfo.DefaultThreadCurrentUICulture = cultureInfo;
 
-// ==========================
-// AUTH
-// ==========================
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
-
-}).AddCookie(options =>
-{
-    options.LoginPath = "/Account/Login";
-    options.LogoutPath = "/Account/Logout";
-    options.AccessDeniedPath = "/Error/Forbidden";
-
-    options.Cookie.Name = "Auth";
-    options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    options.Cookie.SameSite = SameSiteMode.None;  // NA EC2 + KEYCLOAK
-})
-.AddOpenIdConnect(options =>
-{
-    options.Authority = builder.Configuration["Keycloak:Authority"];
-    options.ClientId = builder.Configuration["Keycloak:ClientId"];
-    options.ClientSecret = builder.Configuration["Keycloak:ClientSecret"];
-    options.CallbackPath = builder.Configuration["Keycloak:CallbackPath"];
-
-    options.ResponseType = "code";
-    options.SaveTokens = true;
-    options.GetClaimsFromUserInfoEndpoint = true;
-
-    options.RequireHttpsMetadata = false;
-    options.BackchannelHttpHandler = insecureHandler;
-
-    options.UsePkce = false;
-    options.TokenValidationParameters.ValidateIssuer = false;
-
-    // evita "Correlation failed"
-    options.CorrelationCookie.SameSite = SameSiteMode.None;
-    options.NonceCookie.SameSite = SameSiteMode.None;
-    options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
-
-    options.TokenValidationParameters = new()
-    {
-        NameClaimType = "preferred_username",
-        RoleClaimType = "roles"
-    };
-
-    options.Events = new OpenIdConnectEvents
-    {
-        OnTicketReceived = ctx =>
-        {
-            Console.WriteLine("\n--- LOGIN OK ---\n");
-            return Task.CompletedTask;
-        },
-        OnRemoteFailure = ctx =>
-        {
-            Console.WriteLine("REMOTE FAILURE: " + ctx.Failure?.Message);
-            return Task.CompletedTask;
-        }
-    };
-});
-
-.AddCookie(options =>
-{
-    options.LoginPath = "/Account/Login";
-    options.LogoutPath = "/Account/Logout";
-    options.AccessDeniedPath = "/Error/Forbidden";
-
-    options.Cookie.Name = "Auth";
-
-    // FIX CORRELATION FAILED
-    options.Cookie.SameSite = SameSiteMode.None;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-})
-.AddOpenIdConnect(options =>
-{
-    options.Authority = builder.Configuration["Keycloak:Authority"];
-    options.ClientId = builder.Configuration["Keycloak:ClientId"];
-    options.ClientSecret = builder.Configuration["Keycloak:ClientSecret"];
-    options.CallbackPath = builder.Configuration["Keycloak:CallbackPath"];
-
-    options.ResponseType = "code";
-    options.SaveTokens = true;
-    options.GetClaimsFromUserInfoEndpoint = true;
-
-    options.RequireHttpsMetadata = false;
-    options.BackchannelHttpHandler = insecureHandler;
-
-    // FIX Keycloak
-    options.UsePkce = false;
-    options.TokenValidationParameters.ValidateIssuer = false;
-
-    options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
-    {
-        NameClaimType = "preferred_username",
-        RoleClaimType = "roles"
-    };
-
-    options.Events = new OpenIdConnectEvents
-    {
-        OnTokenValidated = async context =>
-        {
-            var identity = context.Principal.Identity as System.Security.Claims.ClaimsIdentity;
-            var accessToken = context.TokenEndpointResponse?.AccessToken;
-
-            if (identity != null && accessToken != null)
-            {
-                var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-                var jwt = handler.ReadJwtToken(accessToken);
-
-                var realmAccess = jwt.Claims.FirstOrDefault(c => c.Type == "realm_access");
-
-                if (realmAccess != null)
-                {
-                    var parsed = System.Text.Json.JsonDocument.Parse(realmAccess.Value);
-                    if (parsed.RootElement.TryGetProperty("roles", out var roles))
-                    {
-                        foreach (var r in roles.EnumerateArray())
-                        {
-                            var role = r.GetString();
-                            if (role != null)
-                                identity.AddClaim(new System.Security.Claims.Claim("roles", role));
-                        }
-                    }
-                }
-            }
-        }
-    };
-});
-
-// DB
+// Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlServer(connectionString));
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(connectionString));
 
 var app = builder.Build();
 
-// PIPELINE
+// Pipeline
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -159,9 +27,12 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 
-app.UseAuthentication();
-app.UseAuthorization();
+app.UseRouting();
+
+// Sem Authentication
+// Sem Authorization
 
 app.MapControllerRoute(
     name: "default",

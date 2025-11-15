@@ -10,13 +10,6 @@ namespace Winedge.Data
         {
         }
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
-            modelBuilder.Entity<UserDevice>()
-                .HasIndex(u => new { u.User, u.Device })
-                .IsUnique(); // impede duplicações do mesmo par User/Device
-        }
-
-        public DbSet<UserDevice> UserDevices { get; set; }
+        public DbSet<Device> Devices { get; set; }
     }
 }

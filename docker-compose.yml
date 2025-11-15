@@ -24,12 +24,6 @@ services:
 
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
-
-      Keycloak__Authority: "https://98.95.40.70:8443/realms/winedge"
-      Keycloak__ClientId: "aspnetcoremvc"
-      Keycloak__ClientSecret: "hdS9y6wQVGJAzrtdfjutnHqdp3y5i87C"
-      Keycloak__CallbackPath: "/signin-oidc"
-
       ConnectionStrings__DefaultConnection: "Server=mssql;Database=Winedge;User=sa;Password=Winedge@123;TrustServerCertificate=True;"
 
     ports:

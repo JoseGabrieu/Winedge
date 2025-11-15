@@ -11,8 +11,8 @@ using Winedge.Data;
 namespace Winedge.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251112142212_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20251115180447_UpdateCoordsPrecision")]
+    partial class UpdateCoordsPrecision
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,7 +24,7 @@ namespace Winedge.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("Winedge.Models.UserDevice", b =>
+            modelBuilder.Entity("Winedge.Models.Device", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -32,17 +32,19 @@ namespace Winedge.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Device")
+                    b.Property<string>("DeviceName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("User")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<decimal>("Latitude")
+                        .HasColumnType("decimal(10,7)");
+
+                    b.Property<decimal>("Longitude")
+                        .HasColumnType("decimal(10,7)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("UserDevices");
+                    b.ToTable("Devices");
                 });
 #pragma warning restore 612, 618
         }

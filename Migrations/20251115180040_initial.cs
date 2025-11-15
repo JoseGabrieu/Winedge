@@ -5,23 +5,24 @@
 namespace Winedge.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "UserDevices",
+                name: "Devices",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    User = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Device = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                    DeviceName = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Latitude = table.Column<decimal>(type: "decimal(9,6)", nullable: false),
+                    Longitude = table.Column<decimal>(type: "decimal(9,6)", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_UserDevices", x => x.Id);
+                    table.PrimaryKey("PK_Devices", x => x.Id);
                 });
         }
 
@@ -29,7 +30,7 @@ namespace Winedge.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "UserDevices");
+                name: "Devices");
         }
     }
 }
