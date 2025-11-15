@@ -13,14 +13,19 @@ services:
       - "1433:1433"
     volumes:
       - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Winedge@123", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   winedge-app:
     build: .
     container_name: winedge-app
     restart: always
-
     depends_on:
-      - mssql
+      mssql:
+        condition: service_healthy
 
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
