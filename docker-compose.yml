@@ -2,9 +2,6 @@ version: "3.9"
 
 services:
 
-  # ============================================
-  # POSTGRES (Keycloak DB)
-  # ============================================
   postgres:
     image: postgres:16
     container_name: keycloak_postgres
@@ -18,10 +15,6 @@ services:
     networks:
       - keycloak_net
 
-
-  # ============================================
-  # KEYCLOAK
-  # ============================================
   keycloak:
     user: root
     image: quay.io/keycloak/keycloak:24.0.2
@@ -51,8 +44,8 @@ services:
       - postgres
 
     ports:
-      - "8080:8080"   # HTTP Keycloak
-      - "8443:8443"   # HTTPS Keycloak
+      - "8080:8080"
+      - "8443:8443"
 
     volumes:
       - /opt/keycloak/certs:/opt/keycloak/certs:ro
@@ -60,10 +53,6 @@ services:
     networks:
       - keycloak_net
 
-
-  # ============================================
-  # SQL SERVER (opcional - remove se não usar)
-  # ============================================
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: winedge_db
@@ -78,10 +67,6 @@ services:
     networks:
       - keycloak_net
 
-
-  # ============================================
-  # MVC (.NET 9)
-  # ============================================
   winedge-app:
     build: .
     container_name: winedge-app
@@ -94,32 +79,24 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
 
-      # ===== KEYCLOAK CONFIG =====
       Keycloak__Authority: "https://keycloak:8443/realms/winedge"
       Keycloak__ClientId: "winedge-mvc"
       Keycloak__ClientSecret: "SEU_CLIENT_SECRET_AQUI"
       Keycloak__CallbackPath: "/signin-oidc"
 
-      # ===== DATABASE =====
+     
       ConnectionStrings__DefaultConnection: "Server=mssql;Database=Winedge;User=sa;Password=Winedge@123;TrustServerCertificate=True;"
 
     ports:
-      - "8081:8080"   # MVC acessível em localhost:8081
+      - "8081:8080"
 
     networks:
       - keycloak_net
 
-
-# ============================================
-# VOLUMES
-# ============================================
 volumes:
   postgres_data:
   mssql_data:
 
-# ============================================
-# NETWORK
-# ============================================
 networks:
   keycloak_net:
     driver: bridge
