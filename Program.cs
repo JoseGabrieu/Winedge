@@ -6,36 +6,36 @@ using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// MVC
 builder.Services.AddControllersWithViews();
 
-// ================================================
-// IGNORAR CERTIFICADOS SSL SEMPRE (DEV + PRODUÇÃO)
-// ================================================
+// IGNORAR SSL (DEV/PRODUÇÃO)
 HttpClientHandler insecureHandler = new HttpClientHandler
 {
     ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
 };
-// ================================================
 
-
+// ==========================
+// AUTH
+// ==========================
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
-    options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-
-}).AddCookie(options =>
+})
+.AddCookie(options =>
 {
     options.LoginPath = "/Account/Login";
     options.LogoutPath = "/Account/Logout";
     options.AccessDeniedPath = "/Error/Forbidden";
-    options.Cookie.Name = "Auth";
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    options.Cookie.SameSite = SameSiteMode.Lax;
 
-}).AddOpenIdConnect(options =>
+    options.Cookie.Name = "Auth";
+
+    // FIX CORRELATION FAILED
+    options.Cookie.SameSite = SameSiteMode.None;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+})
+.AddOpenIdConnect(options =>
 {
     options.Authority = builder.Configuration["Keycloak:Authority"];
     options.ClientId = builder.Configuration["Keycloak:ClientId"];
@@ -46,10 +46,10 @@ builder.Services.AddAuthentication(options =>
     options.SaveTokens = true;
     options.GetClaimsFromUserInfoEndpoint = true;
 
-    // NUNCA VALIDAR HTTPS** (DEV + PRODUÇÃO)
     options.RequireHttpsMetadata = false;
     options.BackchannelHttpHandler = insecureHandler;
 
+    // FIX Keycloak
     options.UsePkce = false;
     options.TokenValidationParameters.ValidateIssuer = false;
 
@@ -59,64 +59,45 @@ builder.Services.AddAuthentication(options =>
         RoleClaimType = "roles"
     };
 
-    options.Events = new Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectEvents
+    options.Events = new OpenIdConnectEvents
     {
-        OnTokenValidated = context =>
+        OnTokenValidated = async context =>
         {
             var identity = context.Principal.Identity as System.Security.Claims.ClaimsIdentity;
             var accessToken = context.TokenEndpointResponse?.AccessToken;
 
-            Console.WriteLine("\n========== TOKENS RECEBIDOS DO KEYCLOAK ==========\n");
-
-            if (identity != null && !string.IsNullOrEmpty(accessToken))
+            if (identity != null && accessToken != null)
             {
                 var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
                 var jwt = handler.ReadJwtToken(accessToken);
 
-                foreach (var claim in jwt.Claims)
-                    Console.WriteLine($" - {claim.Type}: {claim.Value}");
+                var realmAccess = jwt.Claims.FirstOrDefault(c => c.Type == "realm_access");
 
-                var realmAccessClaim = jwt.Claims.FirstOrDefault(c => c.Type == "realm_access");
-
-                if (realmAccessClaim != null)
+                if (realmAccess != null)
                 {
-                    var realmAccess = System.Text.Json.JsonDocument.Parse(realmAccessClaim.Value);
-
-                    if (realmAccess.RootElement.TryGetProperty("roles", out var rolesElement))
+                    var parsed = System.Text.Json.JsonDocument.Parse(realmAccess.Value);
+                    if (parsed.RootElement.TryGetProperty("roles", out var roles))
                     {
-                        foreach (var r in rolesElement.EnumerateArray())
+                        foreach (var r in roles.EnumerateArray())
                         {
-                            var roleName = r.GetString();
-                            if (roleName != null)
-                            {
-                                identity.AddClaim(new System.Security.Claims.Claim(
-                                    options.TokenValidationParameters.RoleClaimType,
-                                    roleName
-                                ));
-                            }
+                            var role = r.GetString();
+                            if (role != null)
+                                identity.AddClaim(new System.Security.Claims.Claim("roles", role));
                         }
                     }
                 }
             }
-
-            return Task.CompletedTask;
         }
     };
 });
 
-// ================================================
-// Database
-// ================================================
+// DB
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(connectionString));
+builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlServer(connectionString));
 
 var app = builder.Build();
 
-// ================================================
-// Pipeline
-// ================================================
+// PIPELINE
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
@@ -124,16 +105,13 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapStaticAssets();
-
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}")
-    .WithStaticAssets();
+    pattern: "{controller=Home}/{action=Index}/{id?}"
+);
 
 app.Run();
