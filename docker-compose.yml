@@ -1,27 +1,33 @@
-version: "3.9"
-
 services:
 
   mssql:
-     image: mcr.microsoft.com/mssql/server:2022-latest
-     container_name: winedge_db
-     restart: always
-     environment:
-       SA_PASSWORD: "Winedge@123"
-       ACCEPT_EULA: "Y"
-     ports:
-       - "1433:1433"
-     volumes:
-       - mssql_data:/var/opt/mssql
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: winedge_db
+    restart: always
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "Winedge@123!"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Winedge@123!", "-Q", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   winedge-app:
     build: .
     container_name: winedge-app
     restart: always
+    depends_on:
+      mssql:
+        condition: service_healthy
 
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
-      ConnectionStrings__DefaultConnection: "Server=mssql;Database=Winedge;User=sa;Password=Winedge@123;TrustServerCertificate=True;ConnectRetryCount=5;ConnectRetryInterval=10;"
+      ConnectionStrings__DefaultConnection: "Server=mssql;Database=WinedgeMVC;User=sa;Password=Winedge@123!;TrustServerCertificate=True;"
 
     ports:
       - "8082:5000"
