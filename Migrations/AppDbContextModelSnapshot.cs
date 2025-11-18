@@ -31,13 +31,23 @@ namespace Winedge.Migrations
 
                     b.Property<string>("DeviceName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("HumidityLimit")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("Latitude")
                         .HasColumnType("decimal(10,7)");
 
                     b.Property<decimal>("Longitude")
                         .HasColumnType("decimal(10,7)");
+
+                    b.Property<int?>("LuminosityLimit")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TemperatureLimit")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 

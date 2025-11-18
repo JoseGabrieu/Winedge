@@ -27,6 +27,36 @@
                         <span asp-validation-for="DeviceName" class="text-danger"></span>
                     </div>
 
+                    <h5 class="h6 mb-3">Configuração de Limites (Opcional)</h5>
+                    <div class="row mb-3">
+
+                        <div class="col-md-4">
+                            <label asp-for="TemperatureLimit" class="control-label">
+                                <i class="bi bi-thermometer-half text-danger"></i> Temp. (°C)
+                            </label>
+                            <input asp-for="TemperatureLimit" type="number" class="form-control" />
+                            <span asp-validation-for="TemperatureLimit" class="text-danger"></span>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label asp-for="HumidityLimit" class="control-label">
+                                <i class="bi bi-droplet-half text-primary"></i> Umid. (%)
+                            </label>
+                            <input asp-for="HumidityLimit" type="number" class="form-control" />
+                            <span asp-validation-for="HumidityLimit" class="text-danger"></span>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label asp-for="LuminosityLimit" class="control-label">
+                                <i class="bi bi-sun-fill text-warning"></i> Luz (lx)
+                            </label>
+                            <input asp-for="LuminosityLimit" type="number" class="form-control" />
+                            <span asp-validation-for="LuminosityLimit" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <hr />
+
                     <div class="mb-3">
                         <label class="control-label">Localização</label>
                         <p class="form-text text-muted mt-0 mb-2">Clique no mapa para definir a localização do dispositivo.</p>
@@ -72,13 +102,16 @@
     <script>
         document.addEventListener("DOMContentLoaded", function () {
 
+            // 1. Pega os inputs (readonly)
             const latInput = document.getElementById("Latitude");
             const lngInput = document.getElementById("Longitude");
 
+            // 2. Define um centro padrão (São Paulo)
             const initialLat = -23.5505;
             const initialLng = -46.6333;
             const initialZoom = 10;
 
+            // 3. Inicializa o mapa
             const map = L.map('createMap').setView([initialLat, initialLng], initialZoom);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
@@ -87,27 +120,33 @@
 
             let marker = null;
 
+            // --- Função Helper para atualizar os inputs ---
             function updateInputs(coords) {
                 latInput.value = coords.lat.toFixed(7);
                 lngInput.value = coords.lng.toFixed(7);
             }
 
+            // 4. Evento de 'clique' no mapa
             map.on('click', function(e) {
                 const coords = e.latlng;
 
                 if (marker === null) {
+                    // Se é o primeiro clique, CRIA o pino
                     marker = L.marker(coords, {
-                        draggable: true
+                        draggable: true // Permite que seja arrastado
                     }).addTo(map);
 
+                    // Adiciona o evento de 'arrastar' SÓ DEPOIS de criar
                     marker.on('dragend', function () {
                         updateInputs(marker.getLatLng());
                     });
 
                 } else {
+                    // Se o pino já existe, apenas MOVE ele
                     marker.setLatLng(coords);
                 }
 
+                // Em ambos os casos, atualiza os inputs
                 updateInputs(coords);
             });
 

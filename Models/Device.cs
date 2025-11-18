@@ -9,6 +9,7 @@ namespace Winedge.Models
         public int Id { get; set; }
 
         [Required]
+        [StringLength(100)]
         public string DeviceName { get; set; }
 
         [Column(TypeName = "decimal(10,7)")]
@@ -16,5 +17,9 @@ namespace Winedge.Models
 
         [Column(TypeName = "decimal(10,7)")]
         public decimal Longitude { get; set; }
+
+        public int? TemperatureLimit { get; set; }
+        public int? HumidityLimit { get; set; }
+        public int? LuminosityLimit { get; set; }
     }
 }

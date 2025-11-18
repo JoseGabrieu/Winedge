@@ -5,7 +5,7 @@
 namespace Winedge.Migrations
 {
     /// <inheritdoc />
-    public partial class initial : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -16,9 +16,12 @@ namespace Winedge.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    DeviceName = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Latitude = table.Column<decimal>(type: "decimal(9,6)", nullable: false),
-                    Longitude = table.Column<decimal>(type: "decimal(9,6)", nullable: false)
+                    DeviceName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Latitude = table.Column<decimal>(type: "decimal(10,7)", nullable: false),
+                    Longitude = table.Column<decimal>(type: "decimal(10,7)", nullable: false),
+                    TemperatureLimit = table.Column<int>(type: "int", nullable: true),
+                    HumidityLimit = table.Column<int>(type: "int", nullable: true),
+                    LuminosityLimit = table.Column<int>(type: "int", nullable: true)
                 },
                 constraints: table =>
                 {

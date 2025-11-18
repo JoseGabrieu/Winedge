@@ -28,6 +28,36 @@
                         <span asp-validation-for="DeviceName" class="text-danger"></span>
                     </div>
 
+                    <h5 class="h6 mb-3">Configuração de Limites (Alertas)</h5>
+                    <div class="row mb-3">
+
+                        <div class="col-md-4">
+                            <label asp-for="TemperatureLimit" class="control-label">
+                                <i class="bi bi-thermometer-half text-danger"></i> Temp. (°C)
+                            </label>
+                            <input asp-for="TemperatureLimit" type="number" class="form-control" />
+                            <span asp-validation-for="TemperatureLimit" class="text-danger"></span>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label asp-for="HumidityLimit" class="control-label">
+                                <i class="bi bi-droplet-half text-primary"></i> Umid. (%)
+                            </label>
+                            <input asp-for="HumidityLimit" type="number" class="form-control" />
+                            <span asp-validation-for="HumidityLimit" class="text-danger"></span>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label asp-for="LuminosityLimit" class="control-label">
+                                <i class="bi bi-sun-fill text-warning"></i> Luz (lx)
+                            </label>
+                            <input asp-for="LuminosityLimit" type="number" class="form-control" />
+                            <span asp-validation-for="LuminosityLimit" class="text-danger"></span>
+                        </div>
+
+                    </div>
+                    <hr />
+
                     <div class="mb-3">
                         <label class="control-label">Localização</label>
                         <p class="form-text text-muted mt-0 mb-2">Clique ou arraste o pino para redefinir a localização.</p>
@@ -104,7 +134,7 @@
                 updateInputs(marker.getLatLng());
             });
 
-            // 6. NOVO: Evento de 'clique' no mapa
+            // 6. Evento de 'clique' no mapa
             map.on('click', function(e) {
                 // Move o pino para o local clicado
                 marker.setLatLng(e.latlng);

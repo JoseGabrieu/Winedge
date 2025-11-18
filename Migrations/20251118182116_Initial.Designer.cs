@@ -11,8 +11,8 @@ using Winedge.Data;
 namespace Winedge.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251115180447_UpdateCoordsPrecision")]
-    partial class UpdateCoordsPrecision
+    [Migration("20251118182116_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -34,13 +34,23 @@ namespace Winedge.Migrations
 
                     b.Property<string>("DeviceName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("HumidityLimit")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("Latitude")
                         .HasColumnType("decimal(10,7)");
 
                     b.Property<decimal>("Longitude")
                         .HasColumnType("decimal(10,7)");
+
+                    b.Property<int?>("LuminosityLimit")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TemperatureLimit")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
