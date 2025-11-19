@@ -52,17 +52,25 @@
 
                     <dt class="col-sm-5">Max Temp.</dt>
                     <dd class="col-sm-7">
-                        @if (Model.TemperatureLimit.HasValue)
-                        {
-                            <span class="badge bg-danger-subtle text-danger border border-danger">
-                                <i class="bi bi-thermometer-high"></i> @Model.TemperatureLimit °C
-                            </span>
-                        }
-                        else
-                        {
-                            <span class="text-muted small fst-italic">Não definido</span>
-                        }
+                        <span id="tempLimitBadge">
+                            @if (Model.TemperatureLimit.HasValue)
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger">
+                                    <i class="bi bi-thermometer-high"></i> @Model.TemperatureLimit °C
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted small fst-italic">Não definido</span>
+                            }
+                        </span>
+
+                        <span id="tempAlert" class="ms-2 fw-bold text-danger" style="display:none;">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <span class="alert-blink">ALERTA!</span>
+                        </span>
                     </dd>
+
 
                     <dt class="col-sm-5">Max Umid.</dt>
                     <dd class="col-sm-7">
@@ -76,6 +84,11 @@
                         {
                             <span class="text-muted small fst-italic">Não definido</span>
                         }
+                        <span id="humAlert" class="ms-2 fw-bold text-danger" style="display:none;">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <span class="alert-blink">ALERTA!</span>
+                        </span>
+
                     </dd>
 
                     <dt class="col-sm-5">Max Luz</dt>
@@ -90,6 +103,11 @@
                         {
                             <span class="text-muted small fst-italic">Não definido</span>
                         }
+                        <span id="lumAlert" class="ms-2 fw-bold text-danger" style="display:none;">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <span class="alert-blink">ALERTA!</span>
+                        </span>
+
                     </dd>
                 </dl>
             </div>
@@ -143,46 +161,41 @@
     <script>
         document.addEventListener("DOMContentLoaded", function () {
 
-            // 1. INJEÇÃO DE DADOS DO MODEL PARA O JS (LIMITES)
+            // 1. DADOS INICIAIS E CONFIGURAÇÃO
+            // Mapeamento dos limites
             const deviceLimits = {
                 temperature: @(Model.TemperatureLimit?.ToString() ?? "null"),
                 humidity: @(Model.HumidityLimit?.ToString() ?? "null"),
                 luminosity: @(Model.LuminosityLimit?.ToString() ?? "null")
             };
 
-            // 2. MAPA (LEAFLET)
+            // Mapeamento dos IDs de Alerta
+            const alertIds = {
+                temperature: "tempAlert",
+                humidity: "humAlert",
+                luminosity: "lumAlert"
+            };
+
+            const deviceId = '@Model.DeviceName';
+            const MAX_POINTS = 100;
+            const UPDATE_INTERVAL_MS = 2000;
+            let lastTimestampMs = null;
+            let updateInterval;
+            let alertInterval;
+
+
             const lat = "@Model.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)";
             const lng = "@Model.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)";
             const map = L.map('map').setView([parseFloat(lat), parseFloat(lng)], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             L.marker([parseFloat(lat), parseFloat(lng)]).addTo(map).bindPopup("@Model.DeviceName");
 
-            // 3. GRÁFICO (CHART.JS)
             const ctx = document.getElementById('deviceChart').getContext('2d');
-            const deviceId = '@Model.DeviceName';
-            const MAX_POINTS = 100;
-            const UPDATE_INTERVAL_MS = 2000;
-
-            // Temas Visuais
             const chartThemes = {
-                temperature: {
-                    iconClass: "bi-thermometer-half", colorHex: "#dc3545",
-                    rgbaStart: "rgba(220, 53, 69, 0.4)", rgbaEnd: "rgba(220, 53, 69, 0)",
-                    iconColorClass: "text-danger"
-                },
-                humidity: {
-                    iconClass: "bi-droplet-half", colorHex: "#007bff",
-                    rgbaStart: "rgba(0, 123, 255, 0.4)", rgbaEnd: "rgba(0, 123, 255, 0)",
-                    iconColorClass: "text-primary"
-                },
-                luminosity: {
-                    iconClass: "bi-sun-fill", colorHex: "#ffc107",
-                    rgbaStart: "rgba(255, 193, 7, 0.4)", rgbaEnd: "rgba(255, 193, 7, 0)",
-                    iconColorClass: "text-warning"
-                }
+                temperature: { iconClass: "bi-thermometer-half", colorHex: "#dc3545", rgbaStart: "rgba(220, 53, 69, 0.4)", rgbaEnd: "rgba(220, 53, 69, 0)", iconColorClass: "text-danger" },
+                humidity: { iconClass: "bi-droplet-half", colorHex: "#007bff", rgbaStart: "rgba(0, 123, 255, 0.4)", rgbaEnd: "rgba(0, 123, 255, 0)", iconColorClass: "text-primary" },
+                luminosity: { iconClass: "bi-sun-fill", colorHex: "#ffc107", rgbaStart: "rgba(255, 193, 7, 0.4)", rgbaEnd: "rgba(255, 193, 7, 0)", iconColorClass: "text-warning" }
             };
-
-            // Inicialização do Gráfico
             const initialTheme = chartThemes.temperature;
             const initialGradient = ctx.createLinearGradient(0, 0, 0, 350);
             initialGradient.addColorStop(0, initialTheme.rgbaStart);
@@ -193,33 +206,12 @@
                 data: {
                     labels: [],
                     datasets: [
-                        {   // Dataset 0: DADOS REAIS
-                            label: 'Leitura',
-                            data: [],
-                            borderWidth: 2,
-                            borderColor: initialTheme.colorHex,
-                            backgroundColor: initialGradient,
-                            fill: true,
-                            tension: 0.3,
-                            pointRadius: 0,
-                            order: 2 // Fica "atrás" da linha de limite
-                        },
-                        {   // Dataset 1: LINHA DE LIMITE (Tracejada)
-                            label: 'Limite',
-                            data: [], // Será preenchido dinamicamente
-                            borderColor: '#6c757d', // Cinza
-                            borderWidth: 1,
-                            borderDash: [5, 5], // Tracejado
-                            pointRadius: 0,
-                            fill: false,
-                            order: 1 // Fica "na frente"
-                        }
+                        { label: 'Leitura', data: [], borderWidth: 2, borderColor: initialTheme.colorHex, backgroundColor: initialGradient, fill: true, tension: 0.3, pointRadius: 0, order: 2 },
+                        { label: 'Limite', data: [], borderColor: '#6c757d', borderWidth: 1, borderDash: [5, 5], pointRadius: 0, fill: false, order: 1 }
                     ]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: false,
+                    responsive: true, maintainAspectRatio: false, animation: false,
                     scales: {
                         x: { title: { display: true, text: 'Tempo' } },
                         y: { title: { display: true, text: 'Temperatura (°C)' }, beginAtZero: false }
@@ -228,51 +220,66 @@
                 }
             });
 
+            // --- Funções Auxiliares ---
             function parseTimestampMs(ts) {
                 const ms = Date.parse(ts);
                 return Number.isFinite(ms) ? ms : null;
             }
 
-            // --- Lógica de Atualização ---
-
-            let lastTimestampMs = null;
-            let updateInterval;
-
-            // Função Auxiliar: Retorna o valor do limite atual ou null
             function getCurrentLimitValue() {
                 const type = document.getElementById("dataType").value;
-                return deviceLimits[type]; // Pode ser null
+                const limit = deviceLimits[type];
+                return (limit === 'null' || limit === null) ? null : Number(limit);
             }
+
+            // FUNÇÃO DE ALERTA 
+            function toggleSingleAlert(type, value) {
+                const limit = deviceLimits[type];
+                const alertEl = document.getElementById(alertIds[type]);
+
+                if (limit !== 'null' && limit !== null && value > Number(limit)) {
+                    // Valor ultrapassou o limite: Mostra alerta piscante
+                    alertEl.style.display = "inline-block";
+                } else {
+                    // Limite OK ou não definido: Esconde alerta
+                    alertEl.style.display = "none";
+                }
+            }
+
+            // BUSCA TODOS OS ALERTAS
+            async function checkAllLimits() {
+                // Itera sobre todos os atributos definidos nos limites
+                for (const type of Object.keys(deviceLimits)) {
+                    try {
+                        const res = await fetch(`/api/sthcomet/${deviceId}/latest?attribute=${type}&lastN=1`); // Pede APENAS o último valor (lastN=1)
+                        const json = await res.json();
+
+                        // Assumindo que a API retorna um array, e pegamos o último valor:
+                        const lastValue = Number(json.values.at(-1)?.value);
+
+                        if (Number.isFinite(lastValue)) {
+                            // Liga ou desliga o alerta para este atributo específico
+                            toggleSingleAlert(type, lastValue);
+                        }
+                    } catch (err) {
+                        // console.error(`Erro ao checar limite para ${type}:`, err);
+                    }
+                }
+            }
+
+
+            // --- Lógica de Dados (loadInitialData e updateLastPoint) ---
 
             async function loadInitialData() {
                 const type = document.getElementById("dataType").value;
                 try {
                     const res = await fetch(`/api/sthcomet/${deviceId}/latest?attribute=${type}`);
                     const json = await res.json();
-
-                    if (!json.values?.length) {
-                        chart.data.labels = [];
-                        chart.data.datasets[0].data = []; // Dados
-                        chart.data.datasets[1].data = []; // Limite
-                        chart.update();
-                        return;
-                    };
-
-                    // 1. Labels e Dados Reais
+                    if (!json.values?.length) { chart.data.labels = []; chart.data.datasets[0].data = []; chart.data.datasets[1].data = []; chart.update(); return; };
                     chart.data.labels = json.values.map(v => new Date(parseTimestampMs(v.timestamp)).toLocaleTimeString());
                     chart.data.datasets[0].data = json.values.map(v => Number(v.value));
-
-                    // 2. Linha de Limite (Preenche com o mesmo valor N vezes)
                     const limit = getCurrentLimitValue();
-                    if (limit !== null) {
-                        // Cria um array do tamanho dos dados, tudo com o valor do limite
-                        chart.data.datasets[1].data = new Array(json.values.length).fill(limit);
-                        chart.data.datasets[1].hidden = false;
-                    } else {
-                        chart.data.datasets[1].data = [];
-                        chart.data.datasets[1].hidden = true; // Esconde se não tiver limite
-                    }
-
+                    if (limit !== null) { chart.data.datasets[1].data = new Array(json.values.length).fill(limit); chart.data.datasets[1].hidden = false; } else { chart.data.datasets[1].data = []; chart.data.datasets[1].hidden = true; }
                     lastTimestampMs = parseTimestampMs(json.values.at(-1).timestamp);
                     chart.update();
                 } catch (err) { console.error(err); }
@@ -284,23 +291,14 @@
                     const res = await fetch(`/api/sthcomet/${deviceId}/latest?attribute=${type}`);
                     const json = await res.json();
                     if (!json.values?.length) return;
-
                     const last = json.values.at(-1);
                     const lastMs = parseTimestampMs(last.timestamp);
-
+                    const currentValue = Number(last.value);
                     if (lastTimestampMs && lastMs <= lastTimestampMs) return;
 
-                    // Adiciona ponto real
                     chart.data.labels.push(new Date(lastMs).toLocaleTimeString());
-                    chart.data.datasets[0].data.push(Number(last.value));
-
-                    // Adiciona ponto limite
-                    const limit = getCurrentLimitValue();
-                    if (limit !== null) {
-                        chart.data.datasets[1].data.push(limit);
-                    } else {
-                        chart.data.datasets[1].data.push(null);
-                    }
+                    chart.data.datasets[0].data.push(currentValue);
+                    chart.data.datasets[1].data.push(getCurrentLimitValue());
 
                     lastTimestampMs = lastMs;
 
@@ -310,58 +308,60 @@
                         chart.data.datasets[1].data.shift();
                     }
                     chart.update();
+
+                    // A chamada de alerta foi removida daqui
                 } catch (err) { console.error(err); }
             }
 
-            // --- Evento: Troca de Tipo de Dado ---
+            // --- Eventos ---
             document.getElementById("dataType").addEventListener("change", (e) => {
-                // Limpa
                 chart.data.labels = [];
                 chart.data.datasets[0].data = [];
                 chart.data.datasets[1].data = [];
                 lastTimestampMs = null;
 
+                // O checkAllLimits() vai gerenciar o display dos 3 de uma vez.
+
                 const selectedType = e.target.value;
+                const selectedOptionText = e.target.options[e.target.selectedIndex].text;
                 const theme = chartThemes[selectedType];
 
-                // Atualiza Tema (Ícone e Cores)
+                // Atualiza Tema (visualmente)
                 const iconEl = document.getElementById("chartIcon");
                 iconEl.className = "bi " + theme.iconClass + " " + theme.iconColorClass;
-
                 const newGradient = ctx.createLinearGradient(0, 0, 0, 350);
                 newGradient.addColorStop(0, theme.rgbaStart);
                 newGradient.addColorStop(1, theme.rgbaEnd);
 
                 chart.data.datasets[0].borderColor = theme.colorHex;
                 chart.data.datasets[0].backgroundColor = newGradient;
-                chart.data.datasets[0].label = e.target.options[e.target.selectedIndex].text;
-
-                // Configurações do Eixo Y
-                chart.options.scales.y.title.text = e.target.options[e.target.selectedIndex].text;
+                chart.data.datasets[0].label = selectedOptionText;
+                chart.options.scales.y.title.text = selectedOptionText;
                 chart.options.scales.y.beginAtZero = (selectedType !== 'temperature');
 
                 chart.update('none');
                 loadInitialData();
             });
 
-            // Inicia
+
+            // 1. Inicia o gráfico
             loadInitialData();
             if (updateInterval) clearInterval(updateInterval);
             updateInterval = setInterval(updateLastPoint, UPDATE_INTERVAL_MS);
 
+            // 2. check de alertas
+            if (alertInterval) clearInterval(alertInterval);
+            alertInterval = setInterval(checkAllLimits, UPDATE_INTERVAL_MS);
 
-            // 4. CLIMA 
+
+            // 4. CLIMA (Sem mudanças)
             async function loadWeather() {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
-                    `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code` +
-                    `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
-                    `&timezone=America/Sao_Paulo`;
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` + `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code` + `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` + `&timezone=America/Sao_Paulo`;
                 try {
                     const res = await fetch(url);
                     const data = await res.json();
                     const c = data.current; const d = data.daily;
                     const wText = weatherCodeToText(c.weather_code);
-
                     document.getElementById("weatherBox").innerHTML = `
                         <div class="row h-100 align-items-center">
                             <div class="col-6 border-end text-center">
