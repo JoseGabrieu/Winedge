@@ -51,30 +51,29 @@ namespace Winedge.Controllers
         public async Task<IActionResult> Create(
             [Bind("Latitude,Longitude,TemperatureLimit,HumidityLimit,LuminosityLimit")] Device device)
         {
-            // 1. Remove a validação do DeviceName, pois ele será preenchido manualmente.
+            // Remove a validação do DeviceName - será preenchido manualmente.
             ModelState.Remove("DeviceName");
 
             if (!ModelState.IsValid)
                 return View(device);
 
-            // SOLUÇÃO: Preenche o DeviceName com um valor temporário para satisfazer a restrição NOT NULL do banco.
             // O valor real será definido após SaveChanges().
             device.DeviceName = "TEMP_ID";
 
-            // 2. Adiciona o dispositivo ao contexto.
+            // Adiciona o dispositivo ao contexto.
             _context.Add(device);
 
-            // 3. Salva as mudanças. O registro é criado no DB e o device.Id é populado.
+            // Salva as mudanças. O registro é criado no DB e o device.Id é populado.
             await _context.SaveChangesAsync();
 
-            // 4. ATRIBUI o DeviceName final usando o ID gerado pelo banco.
+            // ATRIBUI o DeviceName final usando o ID gerado pelo banco.
             device.DeviceName = $"urn:ngsi-ld:Lamp:{device.Id}";
 
-            // 5. Salva a mudança do DeviceName (agora com o valor correto) no banco de dados.
+            // Salva a mudança do DeviceName
             _context.Update(device);
             await _context.SaveChangesAsync();
 
-            // 6. Registra no Fiware
+            // Registra no Fiware
             await RegisterDeviceInFiware(device);
             await RegisterCommandRegistration(device);
             await RegisterSubscriptions(device);
