@@ -260,7 +260,7 @@ namespace Winedge.Controllers
         public async Task<IActionResult> SendCommand(int deviceId, string command)
         {
             // Monta o entityId
-            string entityId = $"urn:ngsi-ld:Lamp:00{deviceId}";
+            string entityId = $"urn:ngsi-ld:Lamp:{deviceId}";
 
             string baseUrl = _config["Fiware:BaseUrl"];
             string orionPort = _config["Fiware:Ports:Orion"];
