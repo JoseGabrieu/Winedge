@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Text;
 using Winedge.Data;
 using Winedge.Models;
@@ -48,18 +49,34 @@ namespace Winedge.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(
-            [Bind("Id,DeviceName,Latitude,Longitude,TemperatureLimit,HumidityLimit,LuminosityLimit")] Device device)
+            [Bind("Latitude,Longitude,TemperatureLimit,HumidityLimit,LuminosityLimit")] Device device)
         {
+            // 1. Remove a validação do DeviceName, pois ele será preenchido manualmente.
+            ModelState.Remove("DeviceName");
+
             if (!ModelState.IsValid)
                 return View(device);
 
+            // SOLUÇÃO: Preenche o DeviceName com um valor temporário para satisfazer a restrição NOT NULL do banco.
+            // O valor real será definido após SaveChanges().
+            device.DeviceName = "TEMP_ID";
+
+            // 2. Adiciona o dispositivo ao contexto.
             _context.Add(device);
+
+            // 3. Salva as mudanças. O registro é criado no DB e o device.Id é populado.
             await _context.SaveChangesAsync();
 
+            // 4. ATRIBUI o DeviceName final usando o ID gerado pelo banco.
+            device.DeviceName = $"urn:ngsi-ld:Lamp:{device.Id}";
+
+            // 5. Salva a mudança do DeviceName (agora com o valor correto) no banco de dados.
+            _context.Update(device);
+            await _context.SaveChangesAsync();
+
+            // 6. Registra no Fiware
             await RegisterDeviceInFiware(device);
-
             await RegisterCommandRegistration(device);
-
             await RegisterSubscriptions(device);
 
             return RedirectToAction(nameof(Index));
@@ -76,13 +93,10 @@ namespace Winedge.Controllers
             return View(device);
         }
 
-
         // POST: /Devices/Edit
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(
-    int id,
-    [Bind("Id,DeviceName,Latitude,Longitude,TemperatureLimit,HumidityLimit,LuminosityLimit")] Device device)
+        public async Task<IActionResult> Edit(int id, [Bind("Id,DeviceName,Latitude,Longitude,TemperatureLimit,HumidityLimit,LuminosityLimit")] Device device)
         {
             if (id != device.Id) return NotFound();
 
@@ -107,8 +121,6 @@ namespace Winedge.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-
-
         private async Task RegisterDeviceInFiware(Device device)
         {
             string baseUrl = _config["Fiware:BaseUrl"];
@@ -121,7 +133,7 @@ namespace Winedge.Controllers
                 devices = new[]
                 {
                     new {
-                        device_id = device.DeviceName,
+                        device_id = $"lamp{device.Id}",
                         entity_name = $"urn:ngsi-ld:Lamp:{device.Id}",
                         entity_type = "Lamp",
                         protocol = "PDI-IoTA-UltraLight",
@@ -130,7 +142,9 @@ namespace Winedge.Controllers
                         commands = new[]
                         {
                             new { name = "on",  type = "command" },
-                            new { name = "off", type = "command" }
+                            new { name = "off", type = "command" },
+                            new { name = "buzzer_on",  type = "command" },
+                            new { name = "buzzer_off",  type = "command" }
                         },
 
                         attributes = new[]
@@ -174,7 +188,7 @@ namespace Winedge.Controllers
                             type = "Lamp"
                         }
                     },
-                    attrs = new[] { "on", "off" }
+                    attrs = new[] { "on", "off", "buzzer_on", "buzzer_off" }
                 },
                 provider = new
                 {
@@ -209,7 +223,7 @@ namespace Winedge.Controllers
 
             var body = new
             {
-                description = $"Notify STH-Comet of {attribute}",
+                description = "Notify STH-Comet of all Motion Sensor count changes",
                 subject = new
                 {
                     entities = new[]
@@ -242,5 +256,50 @@ namespace Winedge.Controllers
         {
             return _context.Devices.Any(e => e.Id == id);
         }
+
+        [HttpPost]
+        public async Task<IActionResult> SendCommand(int deviceId, string command)
+        {
+            // Monta o entityId
+            string entityId = $"urn:ngsi-ld:Lamp:00{deviceId}";
+
+            string baseUrl = _config["Fiware:BaseUrl"];
+            string orionPort = _config["Fiware:Ports:Orion"];
+
+            string url = $"{baseUrl}:{orionPort}/v2/entities/{entityId}/attrs";
+
+            var payload = new JObject
+            {
+                [command] = new JObject
+                {
+                    ["type"] = "command",
+                    ["value"] = command
+                }
+            };
+
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Add("fiware-service", "smart");
+            http.DefaultRequestHeaders.Add("fiware-servicepath", "/");
+
+            var request = new HttpRequestMessage(new HttpMethod("PATCH"), url)
+            {
+                Content = new StringContent(
+                    JsonConvert.SerializeObject(payload),
+                    Encoding.UTF8,
+                    "application/json"
+                )
+            };
+
+            var response = await http.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                return StatusCode((int)response.StatusCode, error);
+            }
+
+            return Ok(new { message = "Comando enviado com sucesso ao FIWARE" });
+        }
+
     }
 }

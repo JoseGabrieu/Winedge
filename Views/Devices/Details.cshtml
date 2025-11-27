@@ -232,7 +232,7 @@
                 return (limit === 'null' || limit === null) ? null : Number(limit);
             }
 
-            // FUNÇÃO DE ALERTA 
+            // FUNÇÃO DE ALERTA
             function toggleSingleAlert(type, value) {
                 const limit = deviceLimits[type];
                 const alertEl = document.getElementById(alertIds[type]);
@@ -246,26 +246,50 @@
                 }
             }
 
-            // BUSCA TODOS OS ALERTAS
-            async function checkAllLimits() {
-                // Itera sobre todos os atributos definidos nos limites
-                for (const type of Object.keys(deviceLimits)) {
-                    try {
-                        const res = await fetch(`/api/sthcomet/${deviceId}/latest?attribute=${type}&lastN=1`); // Pede APENAS o último valor (lastN=1)
-                        const json = await res.json();
-
-                        // Assumindo que a API retorna um array, e pegamos o último valor:
-                        const lastValue = Number(json.values.at(-1)?.value);
-
-                        if (Number.isFinite(lastValue)) {
-                            // Liga ou desliga o alerta para este atributo específico
-                            toggleSingleAlert(type, lastValue);
-                        }
-                    } catch (err) {
-                        // console.error(`Erro ao checar limite para ${type}:`, err);
-                    }
+            // ENVIA O COMANDO DO BUZZER
+            async function sendBuzzerCommand(command) {
+                try {
+                    await fetch(`/Devices/SendCommand?deviceId=@Model.Id&command=${command}`, {
+                        method: "POST"
+                    });
+                } catch (e) {
+                    console.error("Erro ao enviar comando do buzzer:", e);
                 }
             }
+
+
+            // BUSCA TODOS OS ALERTAS
+            async function checkAllLimits() {
+            let anyExceeded = false;
+
+            for (const type of Object.keys(deviceLimits)) {
+                try {
+                    const res = await fetch(`/api/sthcomet/${deviceId}/latest?attribute=${type}&lastN=1`);
+                    const json = await res.json();
+
+                    const lastValue = Number(json.values.at(-1)?.value);
+                    const limit = deviceLimits[type];
+
+                    if (!Number.isFinite(lastValue)) continue;
+
+                    toggleSingleAlert(type, lastValue);
+
+                    if (limit !== 'null' && limit !== null && lastValue > Number(limit)) {
+                        anyExceeded = true;
+                    }
+
+                } catch (err) {
+                    console.error(`Erro ao checar limite de ${type}`, err);
+                }
+            }
+
+            // CONTROLE DO BUZZER AUTOMÁTICO
+            if (anyExceeded) {
+                sendBuzzerCommand("on");
+            } else {
+                sendBuzzerCommand("off");
+            }
+        }
 
 
             // --- Lógica de Dados (loadInitialData e updateLastPoint) ---
@@ -309,7 +333,6 @@
                     }
                     chart.update();
 
-                    // A chamada de alerta foi removida daqui
                 } catch (err) { console.error(err); }
             }
 
@@ -354,7 +377,7 @@
             alertInterval = setInterval(checkAllLimits, UPDATE_INTERVAL_MS);
 
 
-            // 4. CLIMA (Sem mudanças)
+            // 4. CLIMA 
             async function loadWeather() {
                 const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` + `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code` + `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max` + `&timezone=America/Sao_Paulo`;
                 try {
